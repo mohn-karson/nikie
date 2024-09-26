@@ -5,10 +5,10 @@ import base64
 import cv2
 from glob import glob
 import pandas as pd
-from PIL import Image
-from io import BytesIO
+# from PIL import Image
+# from io import BytesIO
 # import pytesseract
-import requests
+# import requests
 from scripts import language_detector
 from scripts.utils import create_request, validate_page
 
@@ -84,6 +84,7 @@ class ImageProcessor:
                 # Detects Language
                 for idx, image in enumerate(images):
                     image_id = image['imageName']
+                    languages = list(image['languages'])[0]
 
                     retina_df = pd.DataFrame(json.loads(bboxes[image_id]))
 
@@ -107,9 +108,27 @@ class ImageProcessor:
                         else x['easyocr_transcript'], axis=1)
 
                     retina_df.loc[:, 'image'] = image_id
+                    retina_df.loc[:, 'language_alpha2'] = languages[0]
+                    retina_df.loc[:, 'language_alpha3'] = languages[1]
 
                     image['boundingBox'] = retina_df.to_json(orient='records')
                     images[image_id] = image
+
+                    loop_count = 1
+
+                    retina_df.loc[:, 'row'] = -1
+                    retina_df['ymid'] = retina_df[['ymin', 'ymax']].apply(lambda x: sum(x) / 2, axis=1)
+
+                    temp_df = retina_df.copy()
+                    while not temp_df.empty:
+                        init_y = temp_df['ymid'].min()
+                        new_row = temp_df[temp_df[['ymid', 'ymax', 'ymin']].apply(
+                            lambda x: x['ymid'] <= init_y + 0.5 * abs(x['ymax'] - x['ymin']), axis=1)].index
+                        retina_df.loc[new_row, 'row'] = loop_count
+
+
+                        temp_df = retina_df[retina_df['row'] == -1]
+                        loop_count += 1
 
                     bbox_df.append(retina_df)
 

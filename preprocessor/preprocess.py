@@ -1,12 +1,10 @@
 import os.path
 import shutil
-
 import pandas as pd
+import time
 from glob import glob
-
-from parso.python.tree import String
-
 from preprocessor.image import ImageProcessor
+from preprocessor.transcript import TextProcessor
 from scripts.utils import *
 
 allowed_formats = ('jpg', 'img', )
@@ -23,8 +21,12 @@ class Preprocessor:
 
         self.data_dir = data_dir
         self.image_dir = os.path.join(data_dir, 'images')
+        self.bbox_dir = os.path.join(data_dir, 'bboxes')
+        self.annotation_dir = os.path.join(data_dir, 'annotations')
         self.image_processor = ImageProcessor(text_reader_url,
             max_lang=max_lang)
+
+        self.text_processor = TextProcessor()
 
     @staticmethod
     def check_and_download_image(image_url, save_path):
@@ -115,26 +117,28 @@ class Preprocessor:
         return pd.DataFrame()
 
 
-    def get_train_dataset(self, train_validation_split=0.9):
-        train_dataset, validation_dataset = [[], []]
-
-        entire_dataset = []
+    def create_training_dataset(self, dataset_name='dataset'):
 
         if not os.path.exists(self.image_dir):
             os.makedirs(self.image_dir)
 
+        processed_data = []
+        entire_dataset = pd.DataFrame()
+
         for csv_file in glob(self.data_dir + '/*.csv'):
             data_df = self.process_off_data(csv_file)
-            entire_dataset.append(data_df)
+            processed_data.append(data_df)
 
-        entire_dataset = pd.concat(entire_dataset) if entire_dataset else pd.DataFrame()
+        processed_data = pd.concat(processed_data) if processed_data else pd.DataFrame()
 
-        if not entire_dataset.empty:
+        if not processed_data.empty:
 
             total_images = os.listdir(self.image_dir)
             total_iterations = len(total_images)//10 + 1 if len(total_images)%10>=1 else len(total_images)//10
 
             temp_dir = os.path.join(self.image_dir, 'temp')
+
+            # Image processing and getting Bounding Box information
 
             bbox_df = []
 
@@ -146,6 +150,7 @@ class Preprocessor:
                 _bbox_df = self.image_processor.image_preprocessing(self.image_dir)
 
                 bbox_df.append(_bbox_df)
+                delete_all_files(temp_dir)
 
             bbox_df = pd.concat(bbox_df) if bbox_df else pd.DataFrame()
 
@@ -153,37 +158,41 @@ class Preprocessor:
                 logging.info('No image has text segments with in it')
                 return
 
-            entire_dataset = entire_dataset[entire_dataset['code'].isin(bbox_df['image_id'].unique())]
+            processed_data = processed_data[processed_data['code'].isin(bbox_df['image_id'].unique())]
 
+            rename_columns = {col: col.replace('_100g', '') for col in processed_data.columns if '100g' in col}
+            processed_data.rename(columns=rename_columns, inplace=True)
 
+            # Text processing - getting annotations
 
-        return train_dataset, validation_dataset
+            bbox_df.sort_values(['image_id', 'row', 'xmin'], inplace=True, ascending=True)
+            bbox_df.reset_index(inplace=True, drop=True)
+            bbox_df['line_identifier'] = bbox_df.index
+            bbox_df['line_identifier'] = bbox_df.apply(
+                lambda x: x['image_id'] + '_' + str(x['line_identifier']), axis=1)
 
-    def preprocess_data(self, input_data):
+            annotations = self.text_processor.text_processing(data_df=processed_data, bbox_df=bbox_df)
 
-        preprocessed_data = input_data
+            entire_dataset = bbox_df[['image_id', 'line_identifier', 'translated_transcript']].copy()
+            entire_dataset.rename(
+                columns={'image_id': 'code', 'translated_transcript': 'transcript'}, inplace=True
+            )
+            entire_dataset['annotations'] = entire_dataset['line_identifier'].apply(lambda x: annotations[x])
 
-        return preprocessed_data
+        entire_dataset.to_pickle(os.path.join(self.data_dir, dataset_name + '.pickle'))
 
+        return entire_dataset
 
+    def preprocess_data(self,):
 
-if __name__ == '__main__':
+        bbox_df = self.image_processor.image_preprocessing(self.image_dir)
 
-    import time
+        bbox_df = bbox_df[['image_id', 'translated_transcript',]].copy()
+        bbox_df.rename(columns={'translated_transcript': 'transcript'}, inplace=True)
 
-    # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        if bbox_df.empty:
+            logging.info('No image has text segments with in it')
+            return
 
-    _retina_url = 'http://10.20.0.15:3030/detect'
-    pp = Preprocessor(_retina_url)
-    _invoice_dir = r'D:\Facts and Figures\Nielsen\data'
+        return bbox_df
 
-    tic = time.time()
-
-    _images, _bbox_df, _error = pp.image_preprocessing(_invoice_dir,)
-    # _images, _languages = pp.convert_to_images(_invoice_dir)
-    toc = time.time() - tic
-    print(f'execution time {toc}')
-    print('saving output...')
-    # _bbox_df.reset_index(inplace=True, drop=True)
-    # _bbox_df.to_feather(os.path.join(_invoice_dir, 'bbox_df'))
-    _bbox_df.to_csv(os.path.join(_invoice_dir, 'bbox_df.csv'))

@@ -122,28 +122,3 @@ def get_orientation(img):
     except Exception as error:
         logging.error('Orientation calculation failed %s' % error)
     return rotate_angle, rotate_confidence
-
-
-if __name__ == '__main__':
-
-    text_segments = [
-        '64,701.40', '1 120,00', '909.54-', '2009, ', '10.298,', '382.45', '382,45',
-        '1.656.535', '1.988,_', "2'710.70",
-        '5 727.00', '29 750.25', '123 344 546', '1.031, 00'
-    ]
-    # # date_segments = ['382.45', ]
-    #
-    for segment in text_segments:
-        print(segment, amount_to_float(segment))
-    #
-    # _gross = 6878.73
-    # _net = 5502.98
-    # _vat = 1375.75
-    #
-    # print(validate_amount_combination(gross=abs(_gross), net=abs(_net), vat=abs(_vat)))
-
-    # _dates = ['01/12/2020', '01/12/2020', '10/16/00', '12/11/20', '12/15/20', '17/11/2020', '6/5/60']
-
-    # _dates = ['11/02/20', '01/12/60', '10/16/18', '11/23/20', '10/05/20', '17/11/3620', '6/5/60']
-    # _format = get_date_format(_dates)
-    # print(_format)
