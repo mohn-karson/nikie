@@ -7,6 +7,7 @@ from config.config import config
 import requests
 from PIL import Image
 from io import BytesIO
+import pandas as pd
 
 
 def get_empty_columns(data_df, required_columns):
