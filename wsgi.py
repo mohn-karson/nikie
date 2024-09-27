@@ -49,7 +49,7 @@ def home():
     return 'Service is Up and Running.'
 
 
-@application.route('/tag', methods=['GET', 'POST'])
+@application.route('/get-nutrition-details', methods=['GET', 'POST'])
 def entity_tagging():
 
     if request.method == 'POST':

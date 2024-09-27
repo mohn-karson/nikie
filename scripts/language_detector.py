@@ -35,8 +35,3 @@ def lang_detect(image, img_path=None, max_lang=2):
     detected_languages = detected_languages if detected_languages else [('en', 'eng'), ]
     return detected_languages[:max_lang]
 
-
-if __name__ == '__main__':
-    _data_dir = r"D:\OCR_TESTING\High Priority\REV1700122147939FJ\REV1700122147939FJ-0.jpg"
-    _languages = lang_detect(_data_dir)
-    print('languages ', _languages)
