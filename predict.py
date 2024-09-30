@@ -57,6 +57,4 @@ class Predictor:
                 tags = flatten_list(bbox_df[bbox_df['image']==image]['tags'].tolist())
                 prediction_output[image] = tags
 
-            # Tokenize the input text
-
         return prediction_output
